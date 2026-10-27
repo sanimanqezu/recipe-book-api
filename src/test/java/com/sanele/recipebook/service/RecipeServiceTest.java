@@ -287,4 +287,79 @@ class RecipeServiceTest {
         verify(recipeRepository, times(1)).findById(1L);
         verify(recipeRepository, times(1)).save(any(Recipe.class));
     }
+
+    @Test
+    @DisplayName("updateRecipe - should throw ResourceNotFoundException when recipe does not exist")
+    void updateRecipe_whenNotFound_shouldThrowException() {
+        when(recipeRepository.findById(99L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> recipeService.updateRecipe(99L, sampleRequest))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("99");
+
+        verify(recipeRepository, times(1)).findById(99L);
+        verify(recipeRepository, never()).save(any(Recipe.class));
+    }
+
+    @Test
+    @DisplayName("getAllRecipes - with category filter only should delegate to findByCategory")
+    void getAllRecipes_withCategoryFilter_shouldFilterByCategory() {
+        when(recipeRepository.findByCategory(Category.DINNER)).thenReturn(List.of(sampleRecipe));
+
+        List<RecipeResponse> responses = recipeService.getAllRecipes(null, Category.DINNER);
+
+        assertThat(responses).hasSize(1);
+        assertThat(responses.get(0).category()).isEqualTo(Category.DINNER);
+
+        verify(recipeRepository, times(1)).findByCategory(Category.DINNER);
+        verify(recipeRepository, never()).findAll();
+    }
+
+    @Test
+    @DisplayName("createRecipe - should handle a request with no ingredients")
+    void createRecipe_withNullIngredients_shouldSaveWithoutIngredients() {
+        RecipeRequest noIngredients = new RecipeRequest(
+                "Plain Toast",
+                "Just toast",
+                CuisineType.AMERICAN,
+                Category.BREAKFAST,
+                2,
+                3,
+                1,
+                "Toast the bread.",
+                null
+        );
+
+        Recipe savedRecipe = Recipe.builder()
+                .id(5L)
+                .title("Plain Toast")
+                .cuisine(CuisineType.AMERICAN)
+                .category(Category.BREAKFAST)
+                .prepTimeMinutes(2)
+                .cookTimeMinutes(3)
+                .servings(1)
+                .instructions("Toast the bread.")
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        when(recipeRepository.save(any(Recipe.class))).thenReturn(savedRecipe);
+
+        RecipeResponse response = recipeService.createRecipe(noIngredients);
+
+        assertThat(response.title()).isEqualTo("Plain Toast");
+        assertThat(response.ingredients()).isEmpty();
+
+        verify(recipeRepository, times(1)).save(any(Recipe.class));
+    }
+
+    @Test
+    @DisplayName("getMealPlan - should return all recipes when fewer than the plan size exist")
+    void getMealPlan_withFewRecipes_shouldReturnAll() {
+        when(recipeRepository.findAll()).thenReturn(new ArrayList<>(List.of(sampleRecipe)));
+
+        List<RecipeResponse> mealPlan = recipeService.getMealPlan();
+
+        assertThat(mealPlan).hasSize(1);
+        verify(recipeRepository, times(1)).findAll();
+    }
 }
